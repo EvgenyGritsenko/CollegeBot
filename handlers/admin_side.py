@@ -6,6 +6,7 @@ from aiogram.dispatcher import FSMContext
 from data_base import sqlite_db
 from keyboards import inline_kb, delete_kb
 from aiogram.dispatcher.filters import Text
+from handlers import sending_messages
 
 
 async def add_proxy_data(state, data):
@@ -91,3 +92,56 @@ async def callback_delete_news(callback: types.CallbackQuery):
     await delete_kb.delete_inline_keyboard(callback.message)
     await callback.answer('Новость удалена!')
     await bot.send_message(callback.message.chat.id, 'Новость успешно удалена!')
+
+
+@dp.message_handler(commands=['create_schedule'], is_chat_admin=True)
+async def create_schedule(message: types.Message):
+    groups = await sqlite_db.get_all_groups()
+    await states.ScheduleStates.select_group.set()
+    await message.reply('Выберите группу, которой хотите обновить расписание', reply=False,
+                        reply_markup=usually_kb.group_keyboard(groups))
+
+
+@dp.message_handler(state=states.ScheduleStates.select_group)
+async def state_select_group_schedule(message: types.Message, state: FSMContext):
+    all_groups_names = [name[0] for name in await sqlite_db.get_all_groups()]
+    if message.text in all_groups_names:
+        await add_proxy_data(state, {'group': message.text})
+        await message.reply('Теперь отправь фотографию расписания', reply=False,
+                            reply_markup=types.ReplyKeyboardRemove())
+        await states.ScheduleStates.next()
+    else:
+        await bot.send_message(message.chat.id, 'Такой группы не существует!')
+        await state.finish()
+
+
+@dp.message_handler(state=states.ScheduleStates.image, content_types=['photo'])
+async def state_image_schedule(message: types.Message, state: FSMContext):
+    await add_proxy_data(state, {'image': message.photo[0].file_id})
+    await sqlite_db.create_schedule(state)
+    await message.reply('Расписание добавлено', reply=False)
+    async with state.proxy() as data:
+        await sending_messages.sending_schedule(data['group'])
+    await state.finish()
+
+
+@dp.message_handler(commands=['delete_schedule'], is_chat_admin=True)
+async def delete_schedule(message: types.Message):
+    groups = await sqlite_db.get_all_groups()
+    kb = usually_kb.group_keyboard(groups)
+    await message.reply('Выберите группу, которую хотите удалить', reply=False,
+                        reply_markup=kb)
+    await states.DeleteScheduleStates.select_group.set()
+
+
+@dp.message_handler(state=states.DeleteScheduleStates.select_group)
+async def state_delete_schedule(message: types.Message, state: FSMContext):
+    all_groups_names = [name[0] for name in await sqlite_db.get_all_groups()]
+    if message.text in all_groups_names:
+        await sqlite_db.delete_schedule(message.text)
+        await message.reply(f'Расписание группы {message.text} удалено', reply=False,
+                            reply_markup=types.ReplyKeyboardRemove())
+        await state.finish()
+    else:
+        await bot.send_message(message.chat.id, 'Такой группы не существует!')
+        await state.finish()

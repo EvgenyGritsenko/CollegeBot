@@ -21,3 +21,12 @@ class StartStates(StatesGroup):
 
 class SelectGroupStates(StatesGroup):
     group_name = State()
+
+
+class ScheduleStates(StatesGroup):
+    select_group = State()
+    image = State()
+
+
+class DeleteScheduleStates(StatesGroup):
+    select_group = State()

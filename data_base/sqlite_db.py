@@ -12,7 +12,27 @@ def sql_start():
         print('База данных подключена!')
     cursor.execute('CREATE TABLE IF NOT EXISTS users (tg_id INTEGER, name_group TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS news (dt DATETIME, title TEXT, content TEXT, img TEXT)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS groups (name TEXT PRIMARY KEY, timetable TEXT)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS groups (name TEXT PRIMARY KEY, schedule TEXT)')
+    base.commit()
+
+
+async def get_group(name):
+    return [i for i in cursor.execute('SELECT * FROM groups WHERE name = ?', (name,))]
+
+
+async def get_only_such_users(name):
+    return [i for i in cursor.execute('SELECT * FROM users WHERE name_group = ?', (name,))]
+
+
+async def create_schedule(state):
+    data = await get_data_from_proxy(state)
+    cursor.execute('UPDATE groups SET schedule = ? WHERE name = ?',
+                   (data['image'], data['group']))
+    base.commit()
+
+
+async def delete_schedule(name):
+    cursor.execute('UPDATE groups SET schedule = ? WHERE name = ?', (None, name))
     base.commit()
 
 
