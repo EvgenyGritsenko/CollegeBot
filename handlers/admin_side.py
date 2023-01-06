@@ -1,15 +1,17 @@
 from aiogram import types
 from keyboards import usually_kb
-from create_bot import bot, dp
+from create_bot import bot, dp, ADMINS_CHAT_ID
 from handlers import states
 from aiogram.dispatcher import FSMContext
 from data_base import sqlite_db
 from keyboards import inline_kb, delete_kb
 from aiogram.dispatcher.filters import Text
 from handlers import sending_messages
+from create_bot import ADMINS_CHAT_ID
+from data_base.sqlite_db import get_data_from_proxy
 
 
-async def add_proxy_data(state, data):
+async def add_proxy_data(state, data: dict):
     async with state.proxy() as proxy:
         for k,v in data.items():
             proxy[k] = v
@@ -145,3 +147,34 @@ async def state_delete_schedule(message: types.Message, state: FSMContext):
     else:
         await bot.send_message(message.chat.id, 'Такой группы не существует!')
         await state.finish()
+
+
+@dp.message_handler(commands=['next_reply'], is_chat_admin=True)
+async def next_reply_command(message: types.Message):
+    all_qtns = sqlite_db.get_all_questions()
+    if all_qtns:
+        await states.AnswerTheQuestion.start.set()
+        await bot.send_message(ADMINS_CHAT_ID, f'Вопрос от @{all_qtns[0][2]}:\n'
+                                               f'{all_qtns[0][1]}',
+                               reply_markup=await inline_kb.create_reply_keyboard(all_qtns[0][0]))
+    else:
+        await bot.send_message(ADMINS_CHAT_ID, 'Вопросы закончились')
+
+
+@dp.callback_query_handler(Text(startswith='qtn '), state=states.AnswerTheQuestion.start)
+async def callback_question_and_start_state(callback: types.CallbackQuery, state: FSMContext):
+    user_id = callback.data.replace('qtn ', '')
+    await add_proxy_data(state, {'user_id': user_id})
+    await states.AnswerTheQuestion.next()
+    await callback.message.reply('Введите ответ пользователю', reply=False)
+    await callback.answer()
+
+
+@dp.message_handler(state=states.AnswerTheQuestion.answer)
+async def answer_the_question(message: types.Message, state: FSMContext):
+    dict_from_proxy = await get_data_from_proxy(state)
+    await bot.send_message(int(dict_from_proxy['user_id']), 'На ваш вопрос ответили: \n'
+                                                            f'{message.text}')
+    await message.reply('Пользователь получил ваш ответ!', reply=False)
+    await sqlite_db.delete_question(int(dict_from_proxy['user_id']))
+    await state.finish()

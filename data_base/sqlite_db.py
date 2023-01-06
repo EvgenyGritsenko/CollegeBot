@@ -13,6 +13,26 @@ def sql_start():
     cursor.execute('CREATE TABLE IF NOT EXISTS users (tg_id INTEGER, name_group TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS news (dt DATETIME, title TEXT, content TEXT, img TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS groups (name TEXT PRIMARY KEY, schedule TEXT)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS questions (user_id INT, question TEXT, nick TEXT)')
+    base.commit()
+
+
+async def delete_question(user_id):
+    cursor.execute('DELETE FROM questions WHERE user_id = ?', (user_id,))
+    base.commit()
+
+
+def get_all_questions():
+    return [_ for _ in cursor.execute('SELECT * FROM questions')]
+
+
+async def add_question(state):
+    data = await get_data_from_proxy(state)
+    cursor.execute('INSERT INTO questions VALUES (?, ?, ?)', (data['user_id'],
+                                                              data['question'],
+                                                              data['nick'],
+                                                              )
+                   )
     base.commit()
 
 

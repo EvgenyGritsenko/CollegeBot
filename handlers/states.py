@@ -30,3 +30,12 @@ class ScheduleStates(StatesGroup):
 
 class DeleteScheduleStates(StatesGroup):
     select_group = State()
+
+
+class AskQuestionStates(StatesGroup):
+    get_question = State()
+
+
+class AnswerTheQuestion(StatesGroup):
+    start = State()
+    answer = State()

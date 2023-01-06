@@ -4,6 +4,7 @@ from data_base import sqlite_db
 from aiogram.dispatcher import FSMContext
 from handlers import states
 from keyboards import usually_kb
+from handlers.admin_side import add_proxy_data
 
 
 @dp.message_handler(commands=['start'])
@@ -67,3 +68,25 @@ async def news_command(message: types.Message):
     for i in news[:3]:
         await bot.send_photo(message.chat.id, i[3], f'*{i[1]}*\n\n{i[2]}',
                              parse_mode='Markdown')
+
+
+@dp.message_handler(commands=['ask_question'])
+async def ask_question_command(message: types.Message):
+    await message.reply('Напишите свой вопрос', reply=False)
+    await states.AskQuestionStates.get_question.set()
+
+
+@dp.message_handler(state=states.AskQuestionStates.get_question)
+async def get_question_state(message: types.Message, state: FSMContext):
+    await add_proxy_data(state, {
+        'user_id': message.from_user.id,
+        'question': message.text,
+        'nick': message.from_user.username,
+    })
+    await sqlite_db.add_question(state)
+    await message.reply('Вопрос задан, ждите ответа...', reply=False)
+
+
+@dp.message_handler(commands=['id'])
+async def get_group_id(message: types.Message, state: FSMContext):
+    await message.reply(message.chat.id)
